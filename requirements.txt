@@ -9,3 +9,4 @@ tavily-python
 python-dotenv
 langchain-groq
 rank-bm25
+langchain-text-splitters

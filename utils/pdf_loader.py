@@ -1,5 +1,5 @@
 from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from utils.preprocessing import clean_text
 from config.config import CHUNK_SIZE, CHUNK_OVERLAP
 
