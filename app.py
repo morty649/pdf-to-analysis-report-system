@@ -211,19 +211,23 @@ def chat_page():
         # Response mode selector
         with st.container():
             st.markdown('<div class="section-label"> Response Mode</div>', unsafe_allow_html=True)
-            response_mode = st.radio(
+            
+            st.radio(
                 "Select response style",
                 options=["Concise", "Detailed"],
-                index=0 if st.session_state.get("response_mode", "Concise") == "Concise" else 1,
+                key="response_mode",              # <-- bind directly
                 label_visibility="collapsed",
             )
-            st.session_state["response_mode"] = response_mode
+
+           
+            response_mode = st.session_state.get("response_mode", "Concise")
 
             if response_mode == "Concise":
                 st.markdown('<span class="mode-badge-concise">Concise mode active</span>', unsafe_allow_html=True)
             else:
                 st.markdown('<span class="mode-badge-detailed">Detailed mode active</span>', unsafe_allow_html=True)
 
+           
         st.divider()
 
         # CLEAR CHAT: completely clear chat history stored in session_state and clear cached data
