@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import List, Tuple, Any, Union
-from langchain.schema import Document
+from langchain_core.documents import Document
 from langchain_community.vectorstores import Chroma
 from models.embeddings import load_embeddings
 from config.config import VECTOR_DB_PATH

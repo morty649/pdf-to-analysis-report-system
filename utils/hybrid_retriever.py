@@ -1,5 +1,5 @@
-from langchain.retrievers import BM25Retriever
-from langchain.schema import Document
+from langchain_community.retrievers import BM25Retriever
+from langchain_core.documents import Document
 from collections import defaultdict
 
 # Using Reciprocal Rank Fusion with Dense and BM25 ranking
