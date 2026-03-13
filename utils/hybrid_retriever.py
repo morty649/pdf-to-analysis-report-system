@@ -9,12 +9,12 @@ class HybridRetriever:
         self.vector_db = vector_db
 
         self.bm25 = BM25Retriever.from_documents(docs)
-        self.bm25.k = 4
+        self.bm25.k = 6
 
     def retrieve(self, query):
 
         # Dense retrieval
-        dense_docs = self.vector_db.similarity_search(query, k=4)
+        dense_docs = self.vector_db.similarity_search(query, k=6)
 
         # BM25 retrieval
         bm25_docs = self.bm25.invoke(query)
@@ -32,5 +32,6 @@ class HybridRetriever:
             if text not in seen:
                 seen.add(text)
                 unique_docs.append(doc)
-
-        return unique_docs[:5]
+        docs = unique_docs[:5]
+        context = "\n\n".join([doc.page_content for doc in docs])
+        return context,docs
