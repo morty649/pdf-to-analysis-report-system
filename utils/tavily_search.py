@@ -7,11 +7,11 @@ def search_web(query):
     response = client.search(query=query)
     results_full = response.get("results", [])
 
-    # context = top 3 contents joined for the LLM context
+    # top 5 retrievals
     top_contents = [r.get("content", "") for r in results_full]
-    web_context = "\n".join(top_contents[:3])
+    web_context = "\n".join(top_contents[:5])
 
-    # web_results = structured list for UI (title, url, snippet)
+    # results here
     web_results = []
     for r in results_full[:6]:
         web_results.append({

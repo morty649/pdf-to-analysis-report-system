@@ -1,10 +1,11 @@
 import os
 from langchain.chat_models import init_chat_model
-from config.config import GROQ_API_KEY
+from config.config import GROQ_API_KEY,LLM_MODEL
+
 
 
 def get_chatgroq_model():
-    """Initialize and return the Groq chat model"""
+    """Initializes and return the Groq chat model"""
 
     try:
 
@@ -13,7 +14,7 @@ def get_chatgroq_model():
 
        
         llm = init_chat_model(
-            "groq:openai/gpt-oss-120b",
+            f"groq:{LLM_MODEL}",
             temperature=0.2
         )
 

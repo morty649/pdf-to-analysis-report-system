@@ -27,10 +27,10 @@ class HybridRetriever:
         unique_docs = []
 
         for doc in combined:
-            text = doc.page_content[:100]
+            text = doc.page_content[:450]
 
             if text not in seen:
                 seen.add(text)
                 unique_docs.append(doc)
 
-        return unique_docs[:4]
+        return unique_docs[:5]

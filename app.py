@@ -2,12 +2,8 @@ import streamlit as st
 import os
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
-from models.llm import get_chatgroq_model
-from models.embeddings import load_embeddings
-from utils.retrieval import retrieve_context
-from utils.pdf_loader import load_pdf
-from utils.vector_store import create_vector_db
-from utils.tavily_search import search_web
+from models import get_chatgroq_model,load_embeddings
+from utils import retrieve_context,load_pdf,create_vector_db,search_web
 
 
 # Chat Model Helper
