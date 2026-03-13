@@ -1,3 +1,9 @@
+Live at : https://report-to-chat-by-morty.streamlit.app/
+
+Have fun understanding that financial report / any other pdf 
+Make sure to give me back any type of feedback. If felt good star this repo.
+
+
 System Architecture
 
 1. Document ingestion
