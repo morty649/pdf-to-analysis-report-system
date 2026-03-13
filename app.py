@@ -12,7 +12,8 @@ from utils.hybrid_retriever import HybridRetriever
 from utils.vector_store import create_vector_db
 from utils.tavily_search import search_web
 from utils.preprocessing import clean_text
-from langchain_community.memory import ConversationSummaryBufferMemory
+from langchain.memory import ConversationBufferMemory
+
 
 import os
 from config.config import VECTOR_DB_PATH
@@ -140,17 +141,16 @@ def chat_page():
 
     chat_model = st.session_state.chat_model
 
-    # Conversation summary memory (ConversationSummaryBufferMemory)
+    # Conversation summary memory (ConversationBufferMemory)
     if "memory" not in st.session_state:
         try:
-            st.session_state.memory = ConversationSummaryBufferMemory(
-                llm=chat_model,
-                max_token_limit=1200,
+            st.session_state.memory = ConversationBufferMemory(
                 return_messages=False,
                 memory_key="chat_history"
             )
         except Exception:
             st.session_state.memory = None
+
 
     left, right = st.columns([1, 2])
 
@@ -227,14 +227,13 @@ def chat_page():
             st.session_state.messages = []
             if "memory" in st.session_state:
                 try:
-                    st.session_state.memory = ConversationSummaryBufferMemory(
-                        llm=chat_model,
-                        max_token_limit=1200,
+                    st.session_state.memory = ConversationBufferMemory(
                         return_messages=False,
                         memory_key="chat_history"
                     )
                 except Exception:
                     st.session_state.memory = None
+
 
     
     # RIGHT: Chat UI (unchanged logic, but kept robust)
