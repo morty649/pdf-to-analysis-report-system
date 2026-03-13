@@ -1,5 +1,7 @@
 import streamlit as st
+import tempfile
 import os
+from pathlib import Path
 from typing import Tuple, List, Dict, Any
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
@@ -12,15 +14,17 @@ from utils.tavily_search import search_web
 from utils.preprocessing import clean_text
 from langchain.memory import ConversationSummaryBufferMemory
 
+import os
+from config.config import VECTOR_DB_PATH
 
-# ---------------------------
-# Helpers
-# ---------------------------
+os.makedirs(VECTOR_DB_PATH, exist_ok=True)
+from config.config import GROQ_API_KEY, TAVILY_API_KEY, VECTOR_DB_PATH, CHUNK_SIZE, CHUNK_OVERLAP
+
+
+# to get response from model
+
 def get_chat_response(chat_model, messages: List[dict], system_prompt: str) -> str:
-    """
-    Use the chat model with given formatted messages (LangChain Core style).
-    messages: list of {"role": "user"|"assistant", "content": "..."}
-    """
+    
     try:
         formatted_messages = [SystemMessage(content=system_prompt)]
         for msg in messages:
@@ -36,31 +40,28 @@ def get_chat_response(chat_model, messages: List[dict], system_prompt: str) -> s
 
 
 def build_system_prompt(context: str, response_mode: str, memory_summary: str = "") -> str:
-    """
-    Build the system prompt that instructs the assistant and injects the context,
-    chosen response mode and a short memory summary.
-    """
     if response_mode == "Concise":
         mode_instruction = (
-            "Response Style: CONCISE"
-            "- Reply in 2-4 sentences maximum"
-            "- Be direct and to the point."
-            "- No long explanations unless absolutely necessary."
+            "Response Style: CONCISE "
+            "- Reply in 2-4 sentences maximum "
+            "- Be direct and to the point. "
+            "- No long explanations unless absolutely necessary. "
         )
     else:
         mode_instruction = (
-            "Response Style: DETAILED"
-            "- Provide a thorough, in-depth response."
-            "- Use bullet points, numbered lists, or sections where helpful."
-            "- Cover edge cases or caveats if relevant."
+            "Response Style: DETAILED "
+            "- Provide a thorough, in-depth response. "
+            "- Use bullet points, numbered lists, or sections where helpful. "
+            "- Cover edge cases or caveats if relevant. "
         )
 
     mem_section = f"\nConversation summary (brief):\n{memory_summary}\n" if memory_summary else ""
 
     return f"""
-You are an AI assistant that helps users understand financial and regulatory documents.
+You are an AI assistant that helps users understand documents related to finance and regulations.
+Don't hallucinate if you understand the query reason and respond , else say "I was said to not hallucinate so I don't know about it " to  the same query.
 Use the provided context to answer the question accurately.
-If the answer is not present in the context, say clearly that you do not know.
+
 
 {mode_instruction}
 
@@ -71,41 +72,56 @@ Context:
 """
 
 
-# ---------------------------
-# Page CSS (kept from your style)
-# ---------------------------
-PAGE_STYLE = """
-<style>
-body { background: #f7f4ee; color: #1a1a18; }
-.cover { background: #1a1a18; color: #f0ece3; padding: 35px; border-radius: 8px; margin-bottom: 20px; }
-.cover-title { font-size: 32px; font-weight: 700; }
-.cover-sub { color: #a0998e; margin-top: 6px; }
-.user-bubble { background: #eef3ff; padding: 10px; border-radius: 6px; color: #111; border: 1px solid #d0d7ff; margin-bottom: 8px; }
-.bot-bubble { background: #f8f8f8; padding: 10px; border-radius: 6px; color: #111; border: 1px solid #e0e0e0; margin-bottom: 8px; }
-.mode-badge-concise { display: inline-block; background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; border-radius: 12px; padding: 2px 10px; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
-.mode-badge-detailed { display: inline-block; background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; border-radius: 12px; padding: 2px 10px; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
-.section-label { font-size: 13px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
-</style>
-"""
+
+# Page CSS Inspired from my previous project
+
+PAGE_STYLE = """ 
+<style> body { background: #f7f4ee; color: #1a1a18; } 
+.cover { background: #1a1a18; color: #f0ece3; padding: 35px; border-radius: 8px; margin-bottom: 20px; } 
+.cover-title { font-size: 32px; font-weight: 700; } 
+.cover-sub { color: #a0998e; margin-top: 6px; } 
+.user-bubble { background: #eef3ff; padding: 10px; border-radius: 6px; color: #111; border: 1px solid #d0d7ff; margin-bottom: 8px; } 
+.bot-bubble { background: #f8f8f8; padding: 10px; border-radius: 6px; color: #111; border: 1px solid #e0e0e0; margin-bottom: 8px; } 
+.mode-badge-concise { display: inline-block; background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; border-radius: 12px; padding: 2px 10px; font-size: 12px; font-weight: 600; margin-bottom: 6px; } 
+.mode-badge-detailed { display: inline-block; background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; border-radius: 12px; padding: 2px 10px; font-size: 12px; font-weight: 600; margin-bottom: 6px; } 
+.section-label { font-size: 13px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; } </style> """
 
 
-# ---------------------------
+
+# Cached resource wrappers for deployment
+
+@st.cache_resource
+def init_chat_model():
+    # Wrap the model-init so Streamlit caches the model object across runs
+    try:
+        model = get_chatgroq_model()
+        return model
+    except Exception as e:
+        st.error(f"Failed initializing LLM: {e}")
+        return None
+
+@st.cache_resource
+def init_embeddings():
+    try:
+        emb = load_embeddings()
+        return emb
+    except Exception:
+        return None
+
+
 # Main Chat Page
-# ---------------------------
+
 def chat_page():
 
-    # Initialize session state variables
-    if "vector_db" not in st.session_state:
-        st.session_state.vector_db = None
+    # prepare VECTOR_DB_PATH
+    Path(VECTOR_DB_PATH).mkdir(parents=True, exist_ok=True)
 
-    if "docs" not in st.session_state:
-        st.session_state.docs = None
-
-    if "embeddings" not in st.session_state:
-        st.session_state.embeddings = None
+    # session state defaults
+    st.session_state.setdefault("vector_db", None)
+    st.session_state.setdefault("docs", None)
+    st.session_state.setdefault("embeddings", None)
 
     st.markdown(PAGE_STYLE, unsafe_allow_html=True)
-
     st.markdown(
         """
         <div class="cover">
@@ -118,21 +134,15 @@ def chat_page():
         unsafe_allow_html=True,
     )
 
-    # initialize LLM once per session
+    # initialising LLM once per deployment (cached)
     if "chat_model" not in st.session_state:
-        try:
-            st.session_state.chat_model = get_chatgroq_model()
-        except Exception as e:
-            st.error(f"Failed initializing LLM: {e}")
-            st.session_state.chat_model = None
+        st.session_state.chat_model = init_chat_model()
 
     chat_model = st.session_state.chat_model
 
     # Conversation summary memory (ConversationSummaryBufferMemory)
     if "memory" not in st.session_state:
-        # ConversationSummaryBufferMemory requires an llm for summarization
         try:
-            # llm used to summarize conversation into the memory buffer
             st.session_state.memory = ConversationSummaryBufferMemory(
                 llm=chat_model,
                 max_token_limit=1200,
@@ -140,14 +150,13 @@ def chat_page():
                 memory_key="chat_history"
             )
         except Exception:
-            # fallback: store a simple object that implements required methods minimally
             st.session_state.memory = None
 
     left, right = st.columns([1, 2])
 
-    # ---------------------------
+    
     # LEFT: PDF upload + controls
-    # ---------------------------
+    
     with left:
         with st.container():
             st.markdown('<div class="section-label"> Document </div>', unsafe_allow_html=True)
@@ -155,25 +164,43 @@ def chat_page():
             uploaded_file = st.file_uploader("Upload PDF", type="pdf", label_visibility="visible")
 
             if uploaded_file and st.session_state.vector_db is None:
-                tmp_path = "temp_uploaded.pdf"
-                with open(tmp_path, "wb") as f:
-                    f.write(uploaded_file.read())
-
-                st.info("Processing document (extracting & indexing) — please wait...")
+                # using a safe temp file that works in Streamlit Cloud / Docker
+                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
                 try:
-                    chunks = load_pdf(tmp_path)
-                    vector_db, docs = create_vector_db(chunks)
+                    tmp.write(uploaded_file.read())
+                    tmp.flush()
+                    tmp.close()
+
+                    st.info("Processing document (extracting & indexing) — please wait...")
+
+                    
+                    chunks = load_pdf(tmp.name)
+
+                    # Cleaning before embedding
+                    cleaned_chunks = []
+                    for c in chunks:
+                        # If dict okay else assume to be a string
+                        if isinstance(c, dict) and "page_content" in c:
+                            cleaned = clean_text(c["page_content"])
+                            # keep existing metadata if present
+                            cleaned_chunks.append({**c, "page_content": cleaned})
+                        else:
+                            cleaned_chunks.append({"page_content": clean_text(str(c)), "metadata": {}})
+
+                    vector_db, docs = create_vector_db(cleaned_chunks)
                     st.session_state.vector_db = vector_db
                     st.session_state.docs = docs
-                    st.success("Document indexed successfully.")
-                    try:
-                        os.remove(tmp_path)
-                    except Exception:
-                        pass
+                    st.success("Document embedded successfully.")
                 except Exception as e:
                     st.error(f"Failed to index document: {e}")
+                finally:
+                    # try to remove tmp file
+                    try:
+                        os.remove(tmp.name)
+                    except Exception:
+                        pass
 
-            if "vector_db" in st.session_state:
+            if st.session_state.vector_db:
                 st.caption(" Document indexed and ready for retrieval.")
 
         st.divider()
@@ -196,11 +223,8 @@ def chat_page():
 
         st.divider()
 
-        if st.button("Clear Chat & Memory", use_container_width=True):
+        if st.button("Clear Chat History", use_container_width=True):
             st.session_state.messages = []
-            # if "vector_db" in st.session_state:
-            #     del st.session_state.vector_db
-            # reinitialize memory
             if "memory" in st.session_state:
                 try:
                     st.session_state.memory = ConversationSummaryBufferMemory(
@@ -211,16 +235,14 @@ def chat_page():
                     )
                 except Exception:
                     st.session_state.memory = None
-            #st.experimental_rerun()
 
-    # ---------------------------
-    # RIGHT: Chat UI
-    # ---------------------------
+    
+    # RIGHT: Chat UI (unchanged logic, but kept robust)
+    
     with right:
         st.subheader("Chat")
 
-        if "messages" not in st.session_state:
-            st.session_state.messages = []
+        st.session_state.setdefault("messages", [])
 
         # render history
         for message in st.session_state.messages:
@@ -232,56 +254,45 @@ def chat_page():
         prompt = st.chat_input("Ask something about the document...")
 
         if prompt:
-            # Save user message in session messages
             st.session_state.messages.append({"role": "user", "content": prompt})
             st.markdown(f'<div class="user-bubble">{prompt}</div>', unsafe_allow_html=True)
 
-            # Begin processing
             with st.spinner("Thinking..."):
 
                 # 1) RAG retrieval from uploaded PDF (if present)
                 retrieved_context = ""
                 retrieved_docs: List[Any] = []
-                if "vector_db" in st.session_state:
+                if st.session_state.get("vector_db"):
                     try:
                         hybrid = HybridRetriever(
                             st.session_state.vector_db,
                             st.session_state.docs
                         )
-                        retrieved_context, retrieved_docs = hybrid.retrieve(
-                            prompt
-                        )
-                        
+                        retrieved_context, retrieved_docs = hybrid.retrieve(prompt)
                     except Exception as e:
                         st.warning(f"Retrieval error: {e}")
                         retrieved_context = ""
                         retrieved_docs = []
 
-                # 2) Prepare a short memory summary (if memory exists)
+                # 2) memory summary
                 memory_summary = ""
                 if st.session_state.get("memory"):
                     try:
-                        mem_vars = st.session_state.memory.load_memory_variables({})  # returns dict
-                        # memory_key is "chat_history" by default as configured
-                        memory_summary = mem_vars.get("chat_history", "")
-                        # memory.summary might also exist depending on the implementation
-                        if not memory_summary:
-                            memory_summary = mem_vars.get("summary", "") or ""
+                        mem_vars = st.session_state.memory.load_memory_variables({})
+                        memory_summary = mem_vars.get("chat_history", "") or mem_vars.get("summary", "") or ""
                     except Exception:
                         memory_summary = ""
 
-                # 3) Router: ask the LLM whether the retrieved context is sufficient
-                # Build a compact router prompt
+                # 3) Router decision
                 router_system = (
                     "You are a routing assistant. Decide whether the provided document context is sufficient to answer the user's question."
                     " Answer exactly with one token: YES or NO. Only output YES or NO."
                 )
-                router_user = f"Question: {prompt}\n\nDocument context (may be empty or partial):\n{retrieved_context}\n\nIs the context sufficient to answer the question?"
+                router_user = f"Question: {prompt} \n Document context (may be empty or partial): {retrieved_context} Is the context sufficient to answer the question?"
 
                 try:
                     router_response = ""
                     if chat_model:
-                        # format messages for the router
                         formatted_router_msgs = [
                             SystemMessage(content=router_system),
                             HumanMessage(content=router_user),
@@ -297,12 +308,7 @@ def chat_page():
                 use_web = False
                 web_context = ""
 
-                # Decide whether to call web tool:
-                # - If router says NO, call web
-                # - Otherwise prefer PDF context (even if short)
                 if router_response.startswith("NO"):
-                    # Only call web search if user allowed automatic web use (we assume auto is desired)
-                    # Here we call Tavily automatically when router decides PDF context insufficient
                     try:
                         st.info("PDF context insufficient — searching the web for additional info...")
                         web_context = search_web(prompt) or ""
@@ -313,25 +319,18 @@ def chat_page():
                         web_context = ""
                         use_web = False
 
-                # 4) Final context to answer with
                 final_context = ""
                 if use_web and web_context:
-                    # prefer web context when web used; still include retrieved docs for transparency
                     final_context = web_context
                     if retrieved_context:
-                        #st.write(type(retrieved_context))
-                        final_context = f"{retrieved_context}\n\n[PDF context was partial]\n{web_context}"
+                        final_context = f"{retrieved_context}[PDF context was partial]{web_context}"
                 else:
                     final_context = retrieved_context
 
-                # 5) Build system prompt with response mode and memory summary
                 response_mode = st.session_state.get("response_mode", "Concise")
                 system_prompt = build_system_prompt(final_context, response_mode, memory_summary)
 
-                # 6) Create a local messages list combining conversation so far (session messages)
-                # To keep tokens reasonable we pass the last N messages (say 10)
                 recent_messages = st.session_state.messages[-10:]
-                # Build messages in format expected by get_chat_response
                 try:
                     assistant_response = get_chat_response(
                         chat_model,
@@ -341,12 +340,11 @@ def chat_page():
                 except Exception as e:
                     assistant_response = f"Error generating response: {e}"
 
-                # 7) Display assistant response
                 st.markdown(f'<div class="bot-bubble">{assistant_response}</div>', unsafe_allow_html=True)
 
-                # 8) Show sources for transparency
+                # show sources
                 if retrieved_docs:
-                    with st.expander("📄 Document Sources (retrieved)"):
+                    with st.expander("Retrieved from / Sources"):
                         for i, doc in enumerate(retrieved_docs, 1):
                             page = doc.metadata.get("page", None)
                             page_str = f"Page {page+1}" if page is not None else "Page unknown"
@@ -358,26 +356,22 @@ def chat_page():
                             )
 
                 if use_web and web_context:
-                    with st.expander("🌐 Web Search (Tavily)"):
+                    with st.expander("Web Search Powered by Tavily"):
                         st.text_area("Web context (top results)", web_context[:3000], height=240, disabled=True)
 
-                # 9) Save assistant response into session messages and into ConversationSummaryBufferMemory
                 st.session_state.messages.append({"role": "assistant", "content": assistant_response})
 
                 if st.session_state.get("memory"):
                     try:
                         st.session_state.memory.save_context({"input": prompt}, {"output": assistant_response})
                     except Exception:
-                        # memory save failure should not crash the app
                         pass
 
-    # end of with right
 
-# ---------------------------
 # Main
-# ---------------------------
+
 def main():
-    st.set_page_config(page_title="Regulatory AI Assistant", page_icon="📄", layout="wide")
+    st.set_page_config(page_title="Regulatory AI Assistant",layout="wide")
     chat_page()
 
 

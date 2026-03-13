@@ -19,3 +19,11 @@ System Architecture
 
 5. Answer generation
    - Groq LLM
+
+Who will benefit from it : A consultant at NeoStats who is preparing a report for a banking client and needs to extract key insights fast
+A risk manager who wants to know what other banks are doing wrong so they can self-assess
+
+
+These people currently sit and read 20-page dense regulatory documents line by line. Your chatbot eliminates that.
+
+Stop reading regulatory reports. Just ask this agent 
