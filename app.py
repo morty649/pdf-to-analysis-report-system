@@ -12,7 +12,7 @@ from utils.hybrid_retriever import HybridRetriever
 from utils.vector_store import create_vector_db
 from utils.tavily_search import search_web
 from utils.preprocessing import clean_text
-from langchain.memory import ConversationSummaryBufferMemory
+from langchain_community.memory import ConversationSummaryBufferMemory
 
 import os
 from config.config import VECTOR_DB_PATH
