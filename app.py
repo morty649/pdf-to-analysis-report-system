@@ -142,9 +142,10 @@ def chat_page():
     st.markdown(
         """
         <div class="cover">
-            <div class="cover-title">Regulatory AI Assistant</div>
+            <div class="cover-title"> AI for Analysts and Product Owners </div>
             <div class="cover-sub">
-                Upload a regulatory PDF and ask questions about it. The assistant will decide whether to use the PDF or call the web tool automatically.
+                Upload a PDF report and ask questions about it. The assistant will decide whether to use the PDF or call the web tool automatically.
+                Client meeting in 10 minutes , use me !!
             </div>
         </div>
         """,
