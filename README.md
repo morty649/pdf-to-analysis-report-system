@@ -26,7 +26,7 @@ System Architecture
 5. Answer generation
    - Groq LLM
 
-Who will benefit from it : A consultant at NeoStats who is preparing a report for a banking client and needs to extract key insights fast
+Who will benefit from it : Any one who  is preparing a report for a banking client and needs to extract key insights fast
 A risk manager who wants to know what other banks are doing wrong so they can self-assess
 
 
